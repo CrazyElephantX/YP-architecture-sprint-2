@@ -1,33 +1,33 @@
-name: mongo-sharding
-services:
-  
-//сервер конфигурации
-configSrv:
-  image: mongo:latest # docker образ
-  container_name: configSrv 
-  restart: always
-  ports:
-    - "27017:27017"
-  networks:
-    app-network:
-      ipv4_address: 173.17.0.10
-  volumes:
-    - config-data:/data/db
-  command:
-    [
-      "--configsvr",  //запуск в режиме конфигурации
-      "--replSet",
-      "config_server",
-      "--bind_ip_all",
-      "--port",
-      "27017"
-    ] 
-  healthcheck:
-    test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
-    interval: 5s
-    start_period: 10s
+version: '3.8'
 
-  //1-й шард
+name: mongo-sharding
+
+services:
+  # сервер конфигурации
+  configSrv:
+    image: mongo:latest
+    container_name: configSrv 
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.10
+    volumes:
+      - config-data:/data/db
+    command:
+      - "--configsvr"
+      - "--replSet"
+      - "config_server"
+      - "--bind_ip_all"
+      - "--port"
+      - "27017"
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      start_period: 10s
+
+  # 1-й шард
   shard1:
     image: mongo:latest
     container_name: shard1
@@ -40,18 +40,16 @@ configSrv:
     volumes:
       - shard1-data:/data/db
     command:
-      [
-        "--shardsvr", //запуск в режиме шардинга
-        "--bind_ip_all",
-        "--port",
-        "27018"
-      ]
+      - "--shardsvr"
+      - "--bind_ip_all"
+      - "--port"
+      - "27018"
     healthcheck:
-      test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       start_period: 10s
 
-  //2-й шард
+  # 2-й шард
   shard2:
     image: mongo:latest
     container_name: shard2
@@ -64,18 +62,16 @@ configSrv:
     volumes:
       - shard2-data:/data/db
     command:
-      [
-        "--shardsvr", //запуск в режиме шардинга
-        "--bind_ip_all",
-        "--port",
-        "27019"
-      ]
+      - "--shardsvr"
+      - "--bind_ip_all"
+      - "--port"
+      - "27019"
     healthcheck:
-      test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       start_period: 10s
   
-  //роутер
+  # роутер
   mongos_router:
     image: mongo:latest
     container_name: mongos_router
@@ -85,19 +81,36 @@ configSrv:
     networks:
       app-network:
         ipv4_address: 173.17.0.7
+    depends_on:
+      - configSrv
+      - shard1
+      - shard2
     command:
-      [
-        "mongos", //обычная mongo в режиме роутера
-        "--configdb", 
-        "config_server/configSrv:27017", //передача данных сервера конфигурации
-        "--bind_ip_all",
-        "--port",
-        "27020"
-      ]
+      - "mongos"
+      - "--configdb"
+      - "config_server/configSrv:27017"
+      - "--bind_ip_all"
+      - "--port"
+      - "27020"
     healthcheck:
-      test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       start_period: 10s
+
+  pymongo_api:
+    container_name: pymongo_api
+    build: 
+      context: api_app
+      dockerfile: Dockerfile
+    depends_on:
+      - mongos_router
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27020"
+      MONGODB_DATABASE_NAME: "somedb"
 
 networks:
   app-network:
@@ -106,22 +119,7 @@ networks:
       driver: default
       config:
         - subnet: 173.17.0.0/16
-
-  pymongo_api:
-    container_name: pymongo_api
-    build: 
-      context: api_app
-      dockerfile: Dockerfile
-    depends_on:
-      - mongodb1
-    ports:
-      - 8080:8080
-    environment:
-      MONGODB_URL: "mongodb://mongodb1"
-      MONGODB_DATABASE_NAME: "somedb"
-
 volumes:
-  mongodb1_data_container:
   config-data:
   shard1-data:
   shard2-data:
