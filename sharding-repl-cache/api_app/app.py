@@ -29,9 +29,8 @@ app.add_middleware(
 
 DATABASE_URL = os.environ["MONGODB_URL"]
 DATABASE_NAME = os.environ["MONGODB_DATABASE_NAME"]
-REDIS_URL = os.getenv("REDIS_URL", None)
-REDIS_URL: "redis://redis_1:6379" 
-
+# REDIS_URL = os.getenv("REDIS_URL", None)
+REDIS_URL = "redis://redis_1:6379"
 
 """
 A decorator that does not apply any caching.

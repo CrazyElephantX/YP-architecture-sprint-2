@@ -40,10 +40,12 @@ services:
     volumes:
       - shard1-data:/data/db
     command:
-      - "--shardsvr"
-      - "--bind_ip_all"
-      - "--port"
-      - "27018"
+      -  "--shardsvr"
+      -  "--replSet"
+      -  "shard1"
+      -  "--bind_ip_all"
+      -  "--port"
+      -  "27018"
     healthcheck:
       test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
@@ -62,10 +64,12 @@ services:
     volumes:
       - shard2-data:/data/db
     command:
-      - "--shardsvr"
-      - "--bind_ip_all"
-      - "--port"
-      - "27019"
+      -  "--shardsvr"
+      -  "--replSet"
+      -  "shard2"
+      -  "--bind_ip_all"
+      -  "--port"
+      -  "27018"
     healthcheck:
       test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
       interval: 5s
@@ -119,6 +123,7 @@ networks:
       driver: default
       config:
         - subnet: 173.17.0.0/16
+
 volumes:
   config-data:
   shard1-data:
