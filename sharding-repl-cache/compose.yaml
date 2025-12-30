@@ -1,0 +1,233 @@
+name: sharding-repl-cache
+
+services:
+  # сервер конфигурации
+  configSrv:
+    image: mongo:latest
+    container_name: configSrv 
+    restart: always
+    ports:
+      - "27019:27019"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.10
+    volumes:
+      - config-data:/data/db
+    command:
+      - "--configsvr"
+      - "--replSet"
+      - "config_server"
+      - "--bind_ip_all"
+      - "--port"
+      - "27019"
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27019", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      start_period: 10s
+
+  # 1-й шард
+  shard1a:
+    image: mongo:latest
+    container_name: shard1a
+    restart: always
+    ports:
+      - "27018:27018"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.9
+    volumes:
+      - shard1a-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard1rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27018"
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      start_period: 10s
+
+  shard1b:
+    image: mongo:latest
+    container_name: shard1b
+    restart: always
+    ports:
+      - "27028:27018"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.21
+    volumes:
+      - shard1b-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard1rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27018"
+    depends_on:
+      - shard1a
+
+  shard1c:
+    image: mongo:latest
+    container_name: shard1c
+    restart: always
+    ports:
+      - "27038:27018"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.22
+    volumes:
+      - shard1c-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard1rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27018"
+    depends_on:
+      - shard1a
+
+  # 2-й шард
+  shard2a:
+    image: mongo:latest
+    container_name: shard2a
+    restart: always
+    ports:
+      - "27048:27028"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.30
+    volumes:
+      - shard2a-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard2rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27028"
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27028", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      start_period: 10s
+
+  shard2b:
+    image: mongo:latest
+    container_name: shard2b
+    restart: always
+    ports:
+      - "27058:27028"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.31
+    volumes:
+      - shard2b-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard2rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27028"
+    depends_on:
+      - shard2a
+
+  shard2c:
+    image: mongo:latest
+    container_name: shard2c
+    restart: always
+    ports:
+      - "27068:27028"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.32
+    volumes:
+      - shard2c-data:/data/db
+    command:
+      - "--shardsvr"
+      - "--replSet"
+      - "shard2rs"
+      - "--bind_ip_all"
+      - "--port"
+      - "27028"
+    depends_on:
+      - shard2a
+  
+  # роутер
+  mongos_router:
+    image: mongo:latest
+    container_name: mongos_router
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      app-network:
+        ipv4_address: 173.17.0.7
+    depends_on:
+      - configSrv
+      - shard1a
+      - shard2a
+    command:
+      - "mongos"
+      - "--configdb"
+      - "config_server/configSrv:27019"
+      - "--bind_ip_all"
+      - "--port"
+      - "27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      start_period: 10s
+
+  # Redis для кеширования
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  pymongo_api:
+    container_name: pymongo_api
+    build: 
+      context: api_app
+      dockerfile: Dockerfile
+    depends_on:
+      - mongos_router
+      - redis
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+      REDIS_URL: "redis://redis:6379"
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 173.17.0.0/16
+
+volumes:
+  config-data:
+  shard1a-data:
+  shard1b-data:
+  shard1c-data:
+  shard2a-data:
+  shard2b-data:
+  shard2c-data:

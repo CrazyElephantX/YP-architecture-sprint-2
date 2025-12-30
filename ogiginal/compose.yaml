@@ -17,7 +17,6 @@ services:
     environment:
       MONGODB_URL: "mongodb://mongodb1"
       MONGODB_DATABASE_NAME: "somedb"
-
-
+      
 volumes:
   mongodb1_data_container:
